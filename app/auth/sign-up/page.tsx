@@ -1,14 +1,14 @@
 "use client"
 
 import type React from "react"
-
-import { createClient } from "@/lib/supabase/client"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
+
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { signUpWithEmail } from "@/lib/firebase/auth"
 
 export default function SignUpPage() {
   const [email, setEmail] = useState("")
@@ -18,9 +18,8 @@ export default function SignUpPage() {
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
 
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault()
-    const supabase = createClient()
+  const handleSignUp = async (event: React.FormEvent) => {
+    event.preventDefault()
     setIsLoading(true)
     setError(null)
 
@@ -31,14 +30,11 @@ export default function SignUpPage() {
     }
 
     try {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-      })
-      if (error) throw error
+      await signUpWithEmail(email, password)
       router.push("/auth/success")
-    } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : "An error occurred")
+    } catch (authError) {
+      console.error("[sign-up] Error creating account:", authError)
+      setError(authError instanceof Error ? authError.message : "Ocurrió un error al registrar la cuenta.")
     } finally {
       setIsLoading(false)
     }
@@ -64,7 +60,7 @@ export default function SignUpPage() {
                 placeholder="tu@email.com"
                 required
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(event) => setEmail(event.target.value)}
                 className="border-slate-200"
               />
             </div>
@@ -79,7 +75,7 @@ export default function SignUpPage() {
                 placeholder="••••••••"
                 required
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(event) => setPassword(event.target.value)}
                 className="border-slate-200"
               />
             </div>
@@ -94,7 +90,7 @@ export default function SignUpPage() {
                 placeholder="••••••••"
                 required
                 value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
+                onChange={(event) => setConfirmPassword(event.target.value)}
                 className="border-slate-200"
               />
             </div>

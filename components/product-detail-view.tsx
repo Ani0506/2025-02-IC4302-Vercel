@@ -2,9 +2,9 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { createClient } from "@/lib/supabase/client"
-import { Button } from "./ui/button"
 import { ArrowLeft, Heart } from "lucide-react"
+
+import { Button } from "./ui/button"
 
 interface Product {
   id: string
@@ -35,21 +35,23 @@ export function ProductDetailView({ product, userId, isFavorited: initialFavorit
 
   const handleToggleFavorite = async () => {
     setIsLoading(true)
-    const supabase = createClient()
-
-    if (isFavorited) {
-      await supabase.from("favorites").delete().eq("product_id", product.id).eq("user_id", userId)
-      setIsFavorited(false)
-    } else {
-      await supabase.from("favorites").insert([
-        {
-          product_id: product.id,
-          user_id: userId,
-        },
-      ])
-      setIsFavorited(true)
+    try {
+      if (isFavorited) {
+        await fetch(`/api/favorites?productId=${product.id}`, { method: "DELETE" })
+        setIsFavorited(false)
+      } else {
+        await fetch("/api/favorites", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ productId: product.id }),
+        })
+        setIsFavorited(true)
+      }
+    } catch (error) {
+      console.error("[favorites] Error toggling favorite:", error)
+    } finally {
+      setIsLoading(false)
     }
-    setIsLoading(false)
   }
 
   return (

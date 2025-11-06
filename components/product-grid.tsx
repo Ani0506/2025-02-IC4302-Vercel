@@ -1,9 +1,10 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { createClient } from "@/lib/supabase/client"
-import { ProductCard } from "./product-card"
+
 import { Spinner } from "@/components/ui/spinner"
+
+import { ProductCard } from "./product-card"
 
 interface Product {
   id: string
@@ -26,83 +27,123 @@ interface ProductGridProps {
   userId: string
 }
 
+function buildQueryParams({
+  searchQuery,
+  category,
+  priceRange,
+  sortBy,
+}: {
+  searchQuery: string
+  category: string | null
+  priceRange: [number, number]
+  sortBy: string
+}) {
+  const params = new URLSearchParams()
+  if (searchQuery) {
+    params.set("search", searchQuery)
+  }
+  if (category) {
+    params.set("category", category)
+  }
+  params.set("minPrice", priceRange[0].toString())
+  params.set("maxPrice", priceRange[1].toString())
+  params.set("sort", sortBy)
+  return params.toString()
+}
+
 export function ProductGrid({ searchQuery, category, priceRange, sortBy, userId }: ProductGridProps) {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [favorites, setFavorites] = useState<Set<string>>(new Set())
 
   useEffect(() => {
+    let isSubscribed = true
+
     const fetchProducts = async () => {
       setLoading(true)
-      const supabase = createClient()
-
-      let query = supabase.from("products").select("*")
-
-      if (category) {
-        query = query.eq("category", category)
+      try {
+        const query = buildQueryParams({ searchQuery, category, priceRange, sortBy })
+        const response = await fetch(`/api/products?${query}`)
+        if (!response.ok) {
+          throw new Error("No se pudo cargar los productos")
+        }
+        const data = (await response.json()) as { products?: Product[] }
+        if (isSubscribed) {
+          setProducts(data.products ?? [])
+        }
+      } catch (error) {
+        console.error("[products] Error fetching products:", error)
+        if (isSubscribed) {
+          setProducts([])
+        }
+      } finally {
+        if (isSubscribed) {
+          setLoading(false)
+        }
       }
-
-      if (searchQuery) {
-        query = query.ilike("title", `%${searchQuery}%`)
-      }
-
-      query = query.gte("price", priceRange[0]).lte("price", priceRange[1])
-
-      if (sortBy === "price-low") {
-        query = query.order("price", { ascending: true })
-      } else if (sortBy === "price-high") {
-        query = query.order("price", { ascending: false })
-      } else if (sortBy === "rating") {
-        query = query.order("rating", { ascending: false })
-      } else {
-        query = query.order("created_at", { ascending: false })
-      }
-
-      const { data, error } = await query
-
-      if (!error && data) {
-        setProducts(data)
-      }
-      setLoading(false)
     }
 
     fetchProducts()
+    return () => {
+      isSubscribed = false
+    }
   }, [searchQuery, category, priceRange, sortBy])
 
   useEffect(() => {
-    const fetchFavorites = async () => {
-      const supabase = createClient()
-      const { data, error } = await supabase.from("favorites").select("product_id").eq("user_id", userId)
+    let isSubscribed = true
 
-      if (!error && data) {
-        setFavorites(new Set(data.map((fav) => fav.product_id)))
+    const fetchFavorites = async () => {
+      try {
+        const response = await fetch("/api/favorites")
+        if (!response.ok) {
+          throw new Error("No se pudieron cargar los favoritos")
+        }
+        const data = (await response.json()) as { favorites?: string[] }
+        if (isSubscribed) {
+          setFavorites(new Set(data.favorites ?? []))
+        }
+      } catch (error) {
+        console.error("[favorites] Error fetching favorites:", error)
+        if (isSubscribed) {
+          setFavorites(new Set())
+        }
       }
     }
 
-    fetchFavorites()
+    if (userId) {
+      fetchFavorites()
+    }
+
+    return () => {
+      isSubscribed = false
+    }
   }, [userId])
 
   const toggleFavorite = async (productId: string) => {
-    const supabase = createClient()
     const isFavorited = favorites.has(productId)
 
-    if (isFavorited) {
-      await supabase.from("favorites").delete().eq("product_id", productId).eq("user_id", userId)
-
-      setFavorites((prev) => {
-        const newSet = new Set(prev)
-        newSet.delete(productId)
-        return newSet
-      })
-    } else {
-      await supabase.from("favorites").insert([
-        {
-          product_id: productId,
-          user_id: userId,
-        },
-      ])
-
-      setFavorites((prev) => new Set(prev).add(productId))
+    try {
+      if (isFavorited) {
+        await fetch(`/api/favorites?productId=${productId}`, { method: "DELETE" })
+        setFavorites((prev) => {
+          const next = new Set(prev)
+          next.delete(productId)
+          return next
+        })
+      } else {
+        await fetch("/api/favorites", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ productId }),
+        })
+        setFavorites((prev) => {
+          const next = new Set(prev)
+          next.add(productId)
+          return next
+        })
+      }
+    } catch (error) {
+      console.error("[favorites] Error toggling favorite:", error)
     }
   }
 

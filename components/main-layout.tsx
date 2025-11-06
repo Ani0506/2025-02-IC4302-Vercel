@@ -1,16 +1,16 @@
 "use client"
 
 import { useState } from "react"
-import type { User } from "@supabase/supabase-js"
-import { createClient } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
 import { ProductGrid } from "./product-grid"
 import { FilterSidebar } from "./filter-sidebar"
 import { SearchBar } from "./search-bar"
 import { Button } from "./ui/button"
+import { signOutCurrentUser } from "@/lib/firebase/auth"
+import type { AuthenticatedUser } from "@/lib/server/auth"
 
 interface MainLayoutProps {
-  user: User
+  user: AuthenticatedUser
 }
 
 export function MainLayout({ user }: MainLayoutProps) {
@@ -23,9 +23,13 @@ export function MainLayout({ user }: MainLayoutProps) {
 
   const handleLogout = async () => {
     setIsLoading(true)
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    router.refresh()
+    try {
+      await fetch("/api/session", { method: "DELETE" })
+      await signOutCurrentUser()
+      router.replace("/auth/login")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -42,7 +46,7 @@ export function MainLayout({ user }: MainLayoutProps) {
 
           <div className="flex items-center gap-4">
             <div className="text-sm text-slate-600">
-              Bienvenido, <span className="font-semibold">{user.email}</span>
+              Bienvenido, <span className="font-semibold">{user.email ?? "Invitado"}</span>
             </div>
             <Button
               onClick={handleLogout}
@@ -79,7 +83,7 @@ export function MainLayout({ user }: MainLayoutProps) {
           category={selectedCategory}
           priceRange={priceRange}
           sortBy={sortBy}
-          userId={user.id}
+          userId={user.uid}
         />
       </div>
     </div>

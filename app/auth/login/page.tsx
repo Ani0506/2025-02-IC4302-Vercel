@@ -1,14 +1,14 @@
 "use client"
 
 import type React from "react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { useEffect, useRef, useState } from "react"
 
-import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { useState, useEffect } from "react"
+import { signInWithEmail, subscribeToAuthChanges } from "@/lib/firebase/auth"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -17,40 +17,79 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [isCheckingAuth, setIsCheckingAuth] = useState(true)
   const router = useRouter()
-  const supabase = createClient()
+  const sessionInitializedRef = useRef(false)
 
   useEffect(() => {
-    const checkExistingAuth = async () => {
+    let isMounted = true
+
+    const unsubscribe = subscribeToAuthChanges(async (firebaseUser) => {
+      if (!isMounted) {
+        return
+      }
+
+      if (!firebaseUser) {
+        setIsCheckingAuth(false)
+        return
+      }
+
+      if (sessionInitializedRef.current) {
+        router.replace("/")
+        return
+      }
+
       try {
-        const { data } = await supabase.auth.getUser()
-        if (data?.user) {
-          router.push("/")
+        const token = await firebaseUser.getIdToken()
+        const response = await fetch("/api/session", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
+
+        if (!response.ok) {
+          throw new Error("No se pudo crear la sesión")
         }
-      } catch (error) {
-        console.error("[v0] Auth check failed:", error)
+
+        sessionInitializedRef.current = true
+        router.replace("/")
+      } catch (authError) {
+        console.error("[login] Error ensuring session cookie:", authError)
+        setError("Ocurrió un problema al validar la sesión.")
       } finally {
         setIsCheckingAuth(false)
       }
+    })
+
+    return () => {
+      isMounted = false
+      unsubscribe()
     }
+  }, [router])
 
-    checkExistingAuth()
-  }, [router, supabase])
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleLogin = async (event: React.FormEvent) => {
+    event.preventDefault()
     setIsLoading(true)
     setError(null)
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      const user = await signInWithEmail(email, password)
+      const token = await user.getIdToken()
+      const response = await fetch("/api/session", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       })
-      if (error) throw error
-      router.push("/")
-      router.refresh()
-    } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : "An error occurred")
+
+      if (!response.ok) {
+        throw new Error("No se pudo iniciar la sesión en el servidor")
+      }
+
+      sessionInitializedRef.current = true
+      router.replace("/")
+    } catch (authError) {
+      console.error("[login] Error signing in:", authError)
+      setError(authError instanceof Error ? authError.message : "Ocurrió un error al iniciar sesión.")
     } finally {
       setIsLoading(false)
     }
@@ -84,7 +123,7 @@ export default function LoginPage() {
                 placeholder="tu@email.com"
                 required
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(event) => setEmail(event.target.value)}
                 className="border-slate-200"
               />
             </div>
@@ -99,7 +138,7 @@ export default function LoginPage() {
                 placeholder="••••••••"
                 required
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(event) => setPassword(event.target.value)}
                 className="border-slate-200"
               />
             </div>

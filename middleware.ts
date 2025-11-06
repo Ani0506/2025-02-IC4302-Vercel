@@ -1,8 +1,23 @@
-import { updateSession } from "@/lib/supabase/middleware"
-import type { NextRequest } from "next/server"
+import { NextResponse, type NextRequest } from "next/server"
+
+import { firebaseAdminAuth } from "@/lib/firebase/admin"
 
 export async function middleware(request: NextRequest) {
-  return await updateSession(request)
+  const sessionCookie = request.cookies.get("session")?.value
+
+  if (!sessionCookie) {
+    return NextResponse.next()
+  }
+
+  try {
+    await firebaseAdminAuth.verifySessionCookie(sessionCookie, true)
+    return NextResponse.next()
+  } catch (error) {
+    console.error("[middleware] Invalid session cookie", error)
+    const response = NextResponse.next()
+    response.cookies.delete("session")
+    return response
+  }
 }
 
 export const config = {
