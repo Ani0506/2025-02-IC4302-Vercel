@@ -1,4 +1,5 @@
 export const runtime = "nodejs"
+export const dynamic = "force-dynamic"
 
 import { MainLayout } from "@/components/main-layout"
 import { requireUser } from "@/lib/server/auth"

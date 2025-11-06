@@ -11,7 +11,14 @@ export interface AuthenticatedUser {
 
 function getSessionToken(): string | undefined {
   const store = cookies()
-  return store.get("session")?.value
+  const get = (store as unknown as { get?: (name: string) => { value: string } | undefined }).get
+
+  if (typeof get !== "function") {
+    console.warn("[auth] cookies().get is not available in current context")
+    return undefined
+  }
+
+  return get.call(store, "session")?.value
 }
 
 export async function getCurrentUser(): Promise<AuthenticatedUser | null> {
@@ -31,12 +38,14 @@ export async function getCurrentUser(): Promise<AuthenticatedUser | null> {
   } catch (error) {
     console.error("[auth] Failed to verify session", error)
     const store = cookies()
-    try {
-      // delete may not exist in read-only contexts
-      // @ts-expect-error delete is available in request cookies
-      store.delete?.("session")
-    } catch (deleteError) {
-      console.error("[auth] Failed to delete invalid session cookie", deleteError)
+    const del = (store as unknown as { delete?: (name: string) => void }).delete
+
+    if (typeof del === "function") {
+      try {
+        del.call(store, "session")
+      } catch (deleteError) {
+        console.error("[auth] Failed to delete invalid session cookie", deleteError)
+      }
     }
     return null
   }
