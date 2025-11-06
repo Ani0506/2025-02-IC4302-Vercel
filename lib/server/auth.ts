@@ -1,7 +1,7 @@
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 
-import { firebaseAdminAuth, verifySessionCookie } from "@/lib/firebase/admin"
+import { getFirebaseAdminAuth, verifySessionCookie } from "@/lib/firebase/admin"
 
 export interface AuthenticatedUser {
   uid: string
@@ -22,7 +22,7 @@ export async function getCurrentUser(): Promise<AuthenticatedUser | null> {
 
   try {
     const decoded = await verifySessionCookie(token)
-    const userRecord = await firebaseAdminAuth.getUser(decoded.uid)
+    const userRecord = await getFirebaseAdminAuth().getUser(decoded.uid)
     return {
       uid: userRecord.uid,
       email: userRecord.email ?? null,

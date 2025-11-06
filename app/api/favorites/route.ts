@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 
-import { firebaseAdminAuth } from "@/lib/firebase/admin"
+import { verifySessionCookie } from "@/lib/firebase/admin"
 import { addFavorite, listFavorites, removeFavorite } from "@/lib/server/products"
 
 async function getUserId(request: NextRequest) {
@@ -10,7 +10,7 @@ async function getUserId(request: NextRequest) {
   }
 
   try {
-    const decoded = await firebaseAdminAuth.verifySessionCookie(sessionCookie, true)
+    const decoded = await verifySessionCookie(sessionCookie)
     return decoded.uid
   } catch (error) {
     console.error("[favorites] Invalid session cookie", error)

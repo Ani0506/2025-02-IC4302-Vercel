@@ -1,16 +1,16 @@
 import { NextResponse, type NextRequest } from "next/server"
 
-import { firebaseAdminAuth } from "@/lib/firebase/admin"
+import { isFirebaseAdminConfigured, verifySessionCookie } from "@/lib/firebase/admin"
 
 export async function middleware(request: NextRequest) {
   const sessionCookie = request.cookies.get("session")?.value
 
-  if (!sessionCookie) {
+  if (!sessionCookie || !isFirebaseAdminConfigured) {
     return NextResponse.next()
   }
 
   try {
-    await firebaseAdminAuth.verifySessionCookie(sessionCookie, true)
+    await verifySessionCookie(sessionCookie)
     return NextResponse.next()
   } catch (error) {
     console.error("[middleware] Invalid session cookie", error)
