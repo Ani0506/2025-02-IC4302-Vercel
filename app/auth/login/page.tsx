@@ -32,25 +32,23 @@ export default function LoginPage() {
         return
       }
 
-      if (sessionInitializedRef.current) {
-        router.replace("/")
-        return
-      }
-
       try {
-        const token = await firebaseUser.getIdToken()
-        const response = await fetch("/api/session", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        })
+        if (!sessionInitializedRef.current) {
+          const token = await firebaseUser.getIdToken()
+          const response = await fetch("/api/session", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          })
 
-        if (!response.ok) {
-          throw new Error("No se pudo crear la sesión")
+          if (!response.ok) {
+            throw new Error("No se pudo crear la sesión")
+          }
+
+          sessionInitializedRef.current = true
         }
 
-        sessionInitializedRef.current = true
         router.replace("/")
       } catch (authError) {
         console.error("[login] Error ensuring session cookie:", authError)

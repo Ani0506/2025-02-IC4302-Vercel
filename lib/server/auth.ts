@@ -9,16 +9,36 @@ export interface AuthenticatedUser {
   displayName: string | null
 }
 
-function getSessionToken(): string | undefined {
-  const store = cookies()
-  const get = (store as unknown as { get?: (name: string) => { value: string } | undefined }).get
+const SESSION_COOKIE_NAME = "session"
 
-  if (typeof get !== "function") {
-    console.warn("[auth] cookies().get is not available in current context")
-    return undefined
+type CookieStore = {
+  get?: (name: string) => { value: string } | undefined
+  getAll?: () => Array<{ name: string; value: string }>
+  delete?: (name: string) => void
+}
+
+function extractSessionFromStore(store: CookieStore): string | undefined {
+  if (typeof store.get === "function") {
+    return store.get(SESSION_COOKIE_NAME)?.value
   }
 
-  return get.call(store, "session")?.value
+  if (typeof store.getAll === "function") {
+    const cookie = store.getAll().find((item) => item.name === SESSION_COOKIE_NAME)
+    return cookie?.value
+  }
+
+  return undefined
+}
+
+function getSessionToken(): string | undefined {
+  const store = cookies()
+  const token = extractSessionFromStore(store as CookieStore)
+
+  if (!token) {
+    console.warn("[auth] No session cookie found via cookies() API")
+  }
+
+  return token
 }
 
 export async function getCurrentUser(): Promise<AuthenticatedUser | null> {
@@ -38,11 +58,11 @@ export async function getCurrentUser(): Promise<AuthenticatedUser | null> {
   } catch (error) {
     console.error("[auth] Failed to verify session", error)
     const store = cookies()
-    const del = (store as unknown as { delete?: (name: string) => void }).delete
+    const cookieStore = store as CookieStore
 
-    if (typeof del === "function") {
+    if (typeof cookieStore.delete === "function") {
       try {
-        del.call(store, "session")
+        cookieStore.delete(SESSION_COOKIE_NAME)
       } catch (deleteError) {
         console.error("[auth] Failed to delete invalid session cookie", deleteError)
       }
