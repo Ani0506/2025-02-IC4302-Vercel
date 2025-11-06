@@ -28,9 +28,16 @@ export async function getCurrentUser(): Promise<AuthenticatedUser | null> {
       email: userRecord.email ?? null,
       displayName: userRecord.displayName ?? null,
     }
-  } catch {
+  } catch (error) {
+    console.error("[auth] Failed to verify session", error)
     const store = cookies()
-    store.delete("session")
+    try {
+      // delete may not exist in read-only contexts
+      // @ts-expect-error delete is available in request cookies
+      store.delete?.("session")
+    } catch (deleteError) {
+      console.error("[auth] Failed to delete invalid session cookie", deleteError)
+    }
     return null
   }
 }

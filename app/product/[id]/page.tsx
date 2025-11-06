@@ -1,3 +1,5 @@
+export const runtime = "nodejs"
+
 import { notFound } from "next/navigation"
 
 import { ProductDetailView } from "@/components/product-detail-view"

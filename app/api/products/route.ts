@@ -1,3 +1,5 @@
+export const runtime = "nodejs"
+
 import { NextResponse } from "next/server"
 
 import { fetchProducts, type ProductFilters } from "@/lib/server/products"
