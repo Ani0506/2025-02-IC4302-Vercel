@@ -30,19 +30,13 @@ function extractSessionFromStore(store: CookieStore): string | undefined {
   return undefined
 }
 
-function getSessionToken(): string | undefined {
-  const store = cookies()
-  const token = extractSessionFromStore(store as CookieStore)
-
-  if (!token) {
-    console.warn("[auth] No session cookie found via cookies() API")
-  }
-
-  return token
+async function getSessionToken(): Promise<string | undefined> {
+  const store = (await cookies()) as CookieStore
+  return extractSessionFromStore(store)
 }
 
 export async function getCurrentUser(): Promise<AuthenticatedUser | null> {
-  const token = getSessionToken()
+  const token = await getSessionToken()
   if (!token) {
     return null
   }
@@ -57,12 +51,11 @@ export async function getCurrentUser(): Promise<AuthenticatedUser | null> {
     }
   } catch (error) {
     console.error("[auth] Failed to verify session", error)
-    const store = cookies()
-    const cookieStore = store as CookieStore
+    const store = (await cookies()) as CookieStore
 
-    if (typeof cookieStore.delete === "function") {
+    if (typeof store.delete === "function") {
       try {
-        cookieStore.delete(SESSION_COOKIE_NAME)
+        store.delete(SESSION_COOKIE_NAME)
       } catch (deleteError) {
         console.error("[auth] Failed to delete invalid session cookie", deleteError)
       }

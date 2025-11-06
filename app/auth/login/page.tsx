@@ -40,6 +40,7 @@ export default function LoginPage() {
             headers: {
               Authorization: `Bearer ${token}`,
             },
+            credentials: "include",
           })
 
           if (!response.ok) {
@@ -77,6 +78,7 @@ export default function LoginPage() {
         headers: {
           Authorization: `Bearer ${token}`,
         },
+        credentials: "include",
       })
 
       if (!response.ok) {
