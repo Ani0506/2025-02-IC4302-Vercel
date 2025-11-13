@@ -1,66 +1,73 @@
-import type { Filter, Sort } from "mongodb"
+import type { Filter } from "mongodb";
 
-import { ObjectId, getCollection, type FavoriteDocument, type ProductDocument } from "@/lib/mongo/client"
+import {
+  ObjectId,
+  getCollection,
+  type FavoriteDocument,
+  type ProductDocument,
+} from "@/lib/mongo/client";
 
-const PRODUCTS_COLLECTION = process.env.MONGODB_PRODUCTS_COLLECTION ?? "documents"
-const FAVORITES_COLLECTION = process.env.MONGODB_FAVORITES_COLLECTION ?? "favorites"
+const PRODUCTS_COLLECTION =
+  process.env.MONGODB_PRODUCTS_COLLECTION ?? "documents";
+const FAVORITES_COLLECTION =
+  process.env.MONGODB_FAVORITES_COLLECTION ?? "favorites";
 
 export interface Product {
-  id: string
-  title: string
-  description: string
-  price: number
-  original_price: number | null
-  image_url: string
-  category: string
-  rating: number
-  review_count: number
-  in_stock: boolean
-  url?: string
-  publisher?: string
-  publication_date?: string
-  entities?: string[]
+  id: string;
+  title: string;
+  description: string;
+  price: number;
+  original_price: number | null;
+  image_url: string;
+  category: string;
+  rating: number;
+  review_count: number;
+  in_stock: boolean;
+  url?: string;
+  publisher?: string;
+  publication_date?: string;
+  entities?: string[];
 }
 
 function parseRating(raw?: string): { rating: number; reviewCount: number } {
   if (!raw) {
-    return { rating: 0, reviewCount: 0 }
+    return { rating: 0, reviewCount: 0 };
   }
 
-  const ratingMatch = raw.match(/(\d+(\.\d+)?)/)
-  const rating = ratingMatch ? Number.parseFloat(ratingMatch[1]) : 0
+  const ratingMatch = raw.match(/(\d+(\.\d+)?)/);
+  const rating = ratingMatch ? Number.parseFloat(ratingMatch[1]) : 0;
 
-  const reviewsMatch = raw.match(/(\d{1,3}(?:,\d{3})*|\d+)/g)
-  let reviewCount = 0
+  const reviewsMatch = raw.match(/(\d{1,3}(?:,\d{3})*|\d+)/g);
+  let reviewCount = 0;
   if (reviewsMatch && reviewsMatch.length > 1) {
     const numeric = reviewsMatch
       .map((value) => Number.parseInt(value.replace(/,/g, ""), 10))
-      .filter((value) => Number.isFinite(value))
+      .filter((value) => Number.isFinite(value));
     if (numeric.length > 1) {
-      reviewCount = numeric[1]
+      reviewCount = numeric[1];
     }
   }
 
-  return { rating, reviewCount }
+  return { rating, reviewCount };
 }
 
 function normalizeCategory(doc: ProductDocument): string {
   if (doc.category) {
-    return doc.category
+    return doc.category;
   }
 
   if (doc.entities && doc.entities.length > 0) {
-    return doc.entities[0]
+    return doc.entities[0];
   }
 
-  return doc.Publisher ?? "General"
+  return doc.Publisher ?? "General";
 }
 
 function mapProduct(doc: ProductDocument): Product {
-  const { rating, reviewCount } = parseRating(doc["Customer Reviews"])
+  const { rating, reviewCount } = parseRating(doc["Customer Reviews"]);
 
   return {
-    id: doc._id.toString(),
+    id: (doc as any).id ?? doc._id.toString(),
     title: doc.Title,
     description: doc.Description ?? "Descripción no disponible.",
     price: doc.price ?? 0,
@@ -74,110 +81,356 @@ function mapProduct(doc: ProductDocument): Product {
     publisher: doc.Publisher,
     publication_date: doc["Publication date"],
     entities: doc.entities ?? [],
-  }
+  };
 }
 
 export interface ProductFilters {
-  search?: string
-  category?: string | null
-  minPrice?: number
-  maxPrice?: number
-  sort?: "relevance" | "price-low" | "price-high" | "rating"
+  search?: string;
+  facets?: {
+    publisher?: string[];
+    language?: string[];
+    edition?: string[];
+    pubYears?: string[];
+  };
 }
 
 function buildQuery(filters: ProductFilters): Filter<ProductDocument> {
-  const query: Filter<ProductDocument> = {}
-
+  // Fallback regex search only when Atlas Search is not used
+  const query: Filter<ProductDocument> = {};
   if (filters.search) {
-    const regex = new RegExp(filters.search, "i")
+    const regex = new RegExp(filters.search, "i");
     query.$or = [
       { Title: regex },
       { Description: regex },
       { entities: regex },
       { Publisher: regex },
-    ]
+    ];
   }
-
-  if (filters.category) {
-    const regex = new RegExp(filters.category, "i")
-    query.$or = query.$or
-      ? [...(query.$or as Filter<ProductDocument>[]), { category: regex }, { entities: regex }]
-      : [{ category: regex }, { entities: regex }]
-  }
-
-  if (typeof filters.minPrice === "number" || typeof filters.maxPrice === "number") {
-    query.price = {}
-    if (typeof filters.minPrice === "number") {
-      query.price.$gte = filters.minPrice
-    }
-    if (typeof filters.maxPrice === "number") {
-      query.price.$lte = filters.maxPrice
-    }
-  }
-
-  return query
+  return query;
 }
 
-function buildSort(sort: ProductFilters["sort"]): Sort {
-  switch (sort) {
-    case "price-low":
-      return { price: 1 }
-    case "price-high":
-      return { price: -1 }
-    case "rating":
-      return { rating: -1 }
-    default:
-      return { Title: 1 }
+function buildFacetMatch(filters: ProductFilters): Filter<ProductDocument> {
+  const f = filters.facets;
+  if (!f) return {};
+
+  const andClauses: any[] = [];
+  const nonEmpty = (arr?: string[]) =>
+    (arr ?? []).map((v) => v.trim()).filter((v) => v.length > 0);
+  const pubs = nonEmpty(f.publisher);
+  const langs = nonEmpty(f.language);
+  const eds = nonEmpty(f.edition);
+  const years = nonEmpty(f.pubYears);
+  const hasEmptyPublisher = (f.publisher ?? []).some(
+    (v) => v.trim().length === 0
+  );
+  const hasEmptyLanguage = (f.language ?? []).some(
+    (v) => v.trim().length === 0
+  );
+  const hasEmptyEdition = (f.edition ?? []).some((v) => v.trim().length === 0);
+
+  if (pubs.length || hasEmptyPublisher) {
+    const or: any[] = [];
+    if (pubs.length) or.push({ Publisher: { $in: pubs } });
+    if (hasEmptyPublisher) {
+      or.push({ Publisher: { $exists: false } });
+      or.push({ Publisher: null });
+      or.push({ Publisher: "" });
+    }
+    andClauses.push({ $or: or });
   }
+  if (langs.length || hasEmptyLanguage) {
+    const or: any[] = [];
+    if (langs.length) or.push({ Language: { $in: langs } });
+    if (hasEmptyLanguage) {
+      or.push({ Language: { $exists: false } });
+      or.push({ Language: null });
+      or.push({ Language: "" });
+    }
+    andClauses.push({ $or: or });
+  }
+  if (eds.length || hasEmptyEdition) {
+    const or: any[] = [];
+    if (eds.length) or.push({ Edition: { $in: eds } });
+    if (hasEmptyEdition) {
+      or.push({ Edition: { $exists: false } });
+      or.push({ Edition: null });
+      or.push({ Edition: "" });
+    }
+    andClauses.push({ $or: or });
+  }
+  if (years.length) {
+    const yearNums = years
+      .map((y) => Number.parseInt(y, 10))
+      .filter((n) => Number.isFinite(n));
+    if (yearNums.length) {
+      andClauses.push({
+        $expr: {
+          $in: [
+            {
+              $year: {
+                $dateFromString: {
+                  dateString: "$Publication date",
+                  onError: null,
+                  onNull: null,
+                },
+              },
+            },
+            yearNums,
+          ],
+        },
+      });
+    }
+  }
+
+  const out: any = {};
+  if (andClauses.length) out.$and = andClauses;
+  return out;
 }
 
-export async function fetchProducts(filters: ProductFilters = {}): Promise<Product[]> {
-  const productCollection = await getCollection<ProductDocument>(PRODUCTS_COLLECTION)
-  const query = buildQuery(filters)
-  const sort = buildSort(filters.sort)
+export async function fetchProducts(
+  filters: ProductFilters = {}
+): Promise<Product[]> {
+  const productCollection = await getCollection<ProductDocument>(
+    PRODUCTS_COLLECTION
+  );
 
-  const docs = await productCollection.find(query).sort(sort).toArray()
-  return docs.map(mapProduct)
+  const f0 = filters.facets;
+  const hasRealFacets = Boolean(
+    f0 &&
+      ((Array.isArray(f0.publisher) &&
+        f0.publisher.filter((v) => v && v.trim().length > 0).length > 0) ||
+        (Array.isArray(f0.language) &&
+          f0.language.filter((v) => v && v.trim().length > 0).length > 0) ||
+        (Array.isArray(f0.edition) &&
+          f0.edition.filter((v) => v && v.trim().length > 0).length > 0) ||
+        (Array.isArray(f0.pubYears) &&
+          f0.pubYears.filter((v) => v && v.trim().length > 0).length > 0))
+  );
+  const useAtlasSearch = Boolean(filters.search || hasRealFacets);
+
+  if (useAtlasSearch) {
+    try {
+      const indexName = process.env.MONGODB_ATLAS_SEARCH_INDEX ?? "default";
+
+      const filterClauses: any[] = [];
+      const mustClauses: any[] = [];
+
+      if (filters.search) {
+        mustClauses.push({
+          text: {
+            query: filters.search,
+            path: ["Title", "Description", "entities", "Publisher"],
+            fuzzy: { maxEdits: 1 },
+          },
+        });
+      }
+
+      const f = filters.facets;
+      const nonEmpty = (arr?: string[]) =>
+        (arr ?? []).map((v) => v.trim()).filter((v) => v.length > 0);
+      const pubs = nonEmpty(f?.publisher);
+      const langs = nonEmpty(f?.language);
+      const eds = nonEmpty(f?.edition);
+      const years = nonEmpty(f?.pubYears);
+      const hasEmptyPublisher = (f?.publisher ?? []).some(
+        (v) => v.trim().length === 0
+      );
+      const hasEmptyLanguage = (f?.language ?? []).some(
+        (v) => v.trim().length === 0
+      );
+      const hasEmptyEdition = (f?.edition ?? []).some(
+        (v) => v.trim().length === 0
+      );
+
+      if (pubs.length) {
+        filterClauses.push({
+          compound: {
+            should: pubs.map((v) => ({
+              text: { path: "Publisher", query: v },
+            })),
+            minimumShouldMatch: 1,
+          },
+        });
+      }
+      if (langs.length) {
+        filterClauses.push({
+          compound: {
+            should: langs.map((v) => ({
+              text: { path: "Language", query: v },
+            })),
+            minimumShouldMatch: 1,
+          },
+        });
+      }
+      if (eds.length) {
+        filterClauses.push({
+          compound: {
+            should: eds.map((v) => ({ text: { path: "Edition", query: v } })),
+            minimumShouldMatch: 1,
+          },
+        });
+      }
+      // Years by post-$match (compute year server-side)
+
+      const compound: any = {};
+      if (mustClauses.length) compound.must = mustClauses;
+      if (filterClauses.length) compound.filter = filterClauses;
+
+      const pipeline: any[] = [
+        {
+          $search: {
+            index: indexName,
+            ...(Object.keys(compound).length
+              ? { compound }
+              : { exists: { path: "Title" } }),
+            highlight: { path: ["Title", "Description"] },
+          },
+        },
+        { $addFields: { score: { $meta: "searchScore" } } },
+        { $sort: { score: -1 } },
+      ];
+
+      // Post-filter for empty facet selections not expressible in $search
+      const postAnd: any[] = [];
+      if (pubs.length || hasEmptyPublisher) {
+        const or: any[] = [];
+        if (pubs.length) or.push({ Publisher: { $in: pubs } });
+        if (hasEmptyPublisher) {
+          or.push({ Publisher: { $exists: false } });
+          or.push({ Publisher: null });
+          or.push({ Publisher: "" });
+        }
+        if (or.length) postAnd.push({ $or: or });
+      }
+      if (langs.length || hasEmptyLanguage) {
+        const or: any[] = [];
+        if (langs.length) or.push({ Language: { $in: langs } });
+        if (hasEmptyLanguage) {
+          or.push({ Language: { $exists: false } });
+          or.push({ Language: null });
+          or.push({ Language: "" });
+        }
+        if (or.length) postAnd.push({ $or: or });
+      }
+      if (eds.length || hasEmptyEdition) {
+        const or: any[] = [];
+        if (eds.length) or.push({ Edition: { $in: eds } });
+        if (hasEmptyEdition) {
+          or.push({ Edition: { $exists: false } });
+          or.push({ Edition: null });
+          or.push({ Edition: "" });
+        }
+        if (or.length) postAnd.push({ $or: or });
+      }
+      if (years.length) {
+        postAnd.push({
+          $expr: {
+            $in: [
+              {
+                $year: {
+                  $dateFromString: {
+                    dateString: "$Publication date",
+                    onError: null,
+                    onNull: null,
+                  },
+                },
+              },
+              years
+                .map((y) => Number.parseInt(y, 10))
+                .filter((n) => Number.isFinite(n)),
+            ],
+          },
+        });
+      }
+      if (postAnd.length) pipeline.push({ $match: { $and: postAnd } });
+
+      const docs = await productCollection.aggregate(pipeline).toArray();
+      return docs.map(mapProduct);
+    } catch (err) {
+      // Fall through to basic find if $search is unavailable
+    }
+  }
+
+  // Fallback to simple find with regex when no search/facets
+  const facetMatch = buildFacetMatch(filters);
+  const textMatch = buildQuery(filters);
+  const query = {
+    ...textMatch,
+    ...("$and" in facetMatch
+      ? { $and: [...(textMatch.$and ?? []), ...(facetMatch.$and as any[])] }
+      : {}),
+    ...(facetMatch.$expr ? { $expr: facetMatch.$expr } : {}),
+  } as any;
+
+  if (query.$expr) {
+    const docs = await productCollection
+      .aggregate([{ $match: query }])
+      .toArray();
+    return docs.map(mapProduct);
+  }
+  const docs = await productCollection.find(query).toArray();
+  return docs.map(mapProduct);
 }
 
 export async function fetchProductById(id: string): Promise<Product | null> {
-  const productCollection = await getCollection<ProductDocument>(PRODUCTS_COLLECTION)
+  const productCollection = await getCollection<ProductDocument>(
+    PRODUCTS_COLLECTION
+  );
 
-  let doc: ProductDocument | null = null
+  let doc: ProductDocument | null = null;
 
-  if (ObjectId.isValid(id)) {
-    doc = await productCollection.findOne({ _id: new ObjectId(id) })
+  // First: explicit string 'id' field
+  doc = await productCollection.findOne({ id } as any);
+
+  if (!doc && ObjectId.isValid(id)) {
+    doc = await productCollection.findOne({ _id: new ObjectId(id) });
   }
 
   if (!doc) {
-    doc = await productCollection.findOne({ ASIN: id })
+    // Fallback: in case _id is stored as a string in the dataset
+    doc = await productCollection.findOne({ _id: id } as any);
   }
 
-  return doc ? mapProduct(doc) : null
+  if (!doc) {
+    doc = await productCollection.findOne({ ASIN: id });
+  }
+
+  return doc ? mapProduct(doc) : null;
 }
 
 export async function listFavorites(userId: string): Promise<string[]> {
-  const favoritesCollection = await getCollection<FavoriteDocument>(FAVORITES_COLLECTION)
-  const docs = await favoritesCollection.find({ userId }).toArray()
-  return docs.map((doc) => doc.productId)
+  const favoritesCollection = await getCollection<FavoriteDocument>(
+    FAVORITES_COLLECTION
+  );
+  const docs = await favoritesCollection.find({ userId }).toArray();
+  return docs.map((doc) => doc.productId);
 }
 
-export async function isProductFavorited(userId: string, productId: string): Promise<boolean> {
-  const favoritesCollection = await getCollection<FavoriteDocument>(FAVORITES_COLLECTION)
-  const favorite = await favoritesCollection.findOne({ userId, productId })
-  return Boolean(favorite)
+export async function isProductFavorited(
+  userId: string,
+  productId: string
+): Promise<boolean> {
+  const favoritesCollection = await getCollection<FavoriteDocument>(
+    FAVORITES_COLLECTION
+  );
+  const favorite = await favoritesCollection.findOne({ userId, productId });
+  return Boolean(favorite);
 }
 
 export async function addFavorite(userId: string, productId: string) {
-  const favoritesCollection = await getCollection<FavoriteDocument>(FAVORITES_COLLECTION)
+  const favoritesCollection = await getCollection<FavoriteDocument>(
+    FAVORITES_COLLECTION
+  );
   await favoritesCollection.updateOne(
     { userId, productId },
     { $setOnInsert: { userId, productId, createdAt: new Date() } },
-    { upsert: true },
-  )
+    { upsert: true }
+  );
 }
 
 export async function removeFavorite(userId: string, productId: string) {
-  const favoritesCollection = await getCollection<FavoriteDocument>(FAVORITES_COLLECTION)
-  await favoritesCollection.deleteOne({ userId, productId })
+  const favoritesCollection = await getCollection<FavoriteDocument>(
+    FAVORITES_COLLECTION
+  );
+  await favoritesCollection.deleteOne({ userId, productId });
 }

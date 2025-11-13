@@ -1,65 +1,77 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import Link from "next/link"
-import { ArrowLeft, Heart } from "lucide-react"
+import { useState } from "react";
+import Link from "next/link";
+import { ArrowLeft, Heart } from "lucide-react";
 
-import { Button } from "./ui/button"
+import { Button } from "./ui/button";
 
 interface Product {
-  id: string
-  title: string
-  description: string
-  price: number
-  original_price: number | null
-  image_url: string
-  category: string
-  rating: number
-  review_count: number
-  in_stock: boolean
+  id: string;
+  title: string;
+  description: string;
+  price: number;
+  original_price: number | null;
+  image_url: string;
+  category: string;
+  rating: number;
+  review_count: number;
+  in_stock: boolean;
 }
 
 interface ProductDetailViewProps {
-  product: Product
-  userId: string
-  isFavorited: boolean
+  product: Product;
+  userId: string;
+  isFavorited: boolean;
 }
 
-export function ProductDetailView({ product, userId, isFavorited: initialFavorited }: ProductDetailViewProps) {
-  const [isFavorited, setIsFavorited] = useState(initialFavorited)
-  const [isLoading, setIsLoading] = useState(false)
+export function ProductDetailView({
+  product,
+  userId,
+  isFavorited: initialFavorited,
+}: ProductDetailViewProps) {
+  const [isFavorited, setIsFavorited] = useState(initialFavorited);
+  const [isLoading, setIsLoading] = useState(false);
 
   const discount = product.original_price
-    ? Math.round(((product.original_price - product.price) / product.original_price) * 100)
-    : 0
+    ? Math.round(
+        ((product.original_price - product.price) / product.original_price) *
+          100
+      )
+    : 0;
 
   const handleToggleFavorite = async () => {
-    setIsLoading(true)
+    setIsLoading(true);
     try {
       if (isFavorited) {
-        await fetch(`/api/favorites?productId=${product.id}`, { method: "DELETE" })
-        setIsFavorited(false)
+        await fetch(`/api/favorites?productId=${product.id}`, {
+          method: "DELETE",
+        });
+        setIsFavorited(false);
       } else {
         await fetch("/api/favorites", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ productId: product.id }),
-        })
-        setIsFavorited(true)
+        });
+        setIsFavorited(true);
       }
     } catch (error) {
-      console.error("[favorites] Error toggling favorite:", error)
+      console.error("[favorites] Error toggling favorite:", error);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
       <header className="border-b border-slate-200 bg-white">
         <div className="px-6 py-4">
-          <Link href="/" className="inline-flex items-center gap-2 text-green-600 hover:text-green-700 font-medium">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 text-green-600 hover:text-green-700 font-medium"
+          >
             <ArrowLeft className="h-4 w-4" />
             Volver a productos
           </Link>
@@ -97,7 +109,9 @@ export function ProductDetailView({ product, userId, isFavorited: initialFavorit
 
               {/* Title */}
               <div>
-                <h1 className="text-4xl font-bold text-slate-900">{product.title}</h1>
+                <h1 className="text-4xl font-bold text-slate-900">
+                  {product.title}
+                </h1>
               </div>
 
               {/* Rating */}
@@ -106,7 +120,11 @@ export function ProductDetailView({ product, userId, isFavorited: initialFavorit
                   {[...Array(5)].map((_, i) => (
                     <span
                       key={i}
-                      className={`text-2xl ${i < Math.floor(product.rating) ? "text-yellow-400" : "text-slate-300"}`}
+                      className={`text-2xl ${
+                        i < Math.floor(product.rating)
+                          ? "text-yellow-400"
+                          : "text-slate-300"
+                      }`}
                     >
                       ★
                     </span>
@@ -120,30 +138,47 @@ export function ProductDetailView({ product, userId, isFavorited: initialFavorit
               {/* Price */}
               <div className="border-t border-b border-slate-200 py-6">
                 <div className="flex items-baseline gap-4">
-                  <span className="text-5xl font-bold text-slate-900">${product.price.toFixed(2)}</span>
+                  <span className="text-5xl font-bold text-slate-900">
+                    ${product.price.toFixed(2)}
+                  </span>
                   {product.original_price && (
-                    <span className="text-2xl text-slate-500 line-through">${product.original_price.toFixed(2)}</span>
+                    <span className="text-2xl text-slate-500 line-through">
+                      ${product.original_price.toFixed(2)}
+                    </span>
                   )}
                 </div>
                 {discount > 0 && (
                   <p className="mt-2 text-sm text-green-600 font-semibold">
-                    Ahorras ${(product.original_price! - product.price).toFixed(2)}
+                    Ahorras $
+                    {(product.original_price! - product.price).toFixed(2)}
                   </p>
                 )}
               </div>
 
               {/* Stock Status */}
               <div className="flex items-center gap-3">
-                <div className={`h-3 w-3 rounded-full ${product.in_stock ? "bg-green-500" : "bg-red-500"}`} />
-                <span className={`text-lg font-semibold ${product.in_stock ? "text-green-600" : "text-red-600"}`}>
+                <div
+                  className={`h-3 w-3 rounded-full ${
+                    product.in_stock ? "bg-green-500" : "bg-red-500"
+                  }`}
+                />
+                <span
+                  className={`text-lg font-semibold ${
+                    product.in_stock ? "text-green-600" : "text-red-600"
+                  }`}
+                >
                   {product.in_stock ? "En Stock" : "Sin Stock"}
                 </span>
               </div>
 
               {/* Description */}
               <div className="rounded-lg bg-white p-6 border border-slate-200">
-                <h3 className="mb-3 text-lg font-semibold text-slate-900">Descripción del Producto</h3>
-                <p className="leading-relaxed text-slate-700">{product.description}</p>
+                <h3 className="mb-3 text-lg font-semibold text-slate-900">
+                  Descripción del Producto
+                </h3>
+                <p className="leading-relaxed text-slate-700">
+                  {product.description}
+                </p>
               </div>
 
               {/* Actions */}
@@ -154,11 +189,19 @@ export function ProductDetailView({ product, userId, isFavorited: initialFavorit
                   variant="outline"
                   className="flex-1 border-slate-200 bg-transparent"
                 >
-                  <Heart className={`h-5 w-5 ${isFavorited ? "fill-red-500 text-red-500" : "text-slate-600"}`} />
+                  <Heart
+                    className={`h-5 w-5 ${
+                      isFavorited
+                        ? "fill-red-500 text-red-500"
+                        : "text-slate-600"
+                    }`}
+                  />
                   {isFavorited ? "Guardado" : "Guardar"}
                 </Button>
                 <Link href="/" className="flex-1">
-                  <Button className="w-full bg-green-600 hover:bg-green-700">Continuar Comprando</Button>
+                  <Button className="w-full bg-green-600 hover:bg-green-700">
+                    Continuar Comprando
+                  </Button>
                 </Link>
               </div>
 
@@ -178,5 +221,5 @@ export function ProductDetailView({ product, userId, isFavorited: initialFavorit
         </div>
       </main>
     </div>
-  )
+  );
 }
