@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Heart } from "lucide-react";
+import { useEffect } from "react";
 
 interface Product {
   id: string;
@@ -14,6 +15,10 @@ interface Product {
   rating: number;
   review_count: number;
   in_stock: boolean;
+  url?: string;
+  publisher?: string;
+  publication_date?: string;
+  entities?: string[];
 }
 
 interface ProductCardProps {
@@ -27,28 +32,16 @@ export function ProductCard({
   isFavorited,
   onToggleFavorite,
 }: ProductCardProps) {
-  const discount = product.original_price
-    ? Math.round(
-        ((product.original_price - product.price) / product.original_price) *
-          100
-      )
-    : 0;
-
   return (
     <Link href={`/product/${product.id}`}>
-      <div className="group rounded-lg border border-slate-200 bg-white p-4 transition-all hover:shadow-lg cursor-pointer h-full">
-        {/* Image Container */}
+      <div className="group h-full cursor-pointer rounded-lg border border-slate-200 bg-white p-4 transition-all hover:shadow-lg">
+        {/* Image */}
         <div className="relative mb-4 overflow-hidden rounded-lg bg-slate-100">
           <img
             src={product.image_url || "/placeholder.svg"}
             alt={product.title}
             className="h-48 w-full object-cover transition-transform group-hover:scale-105"
           />
-          {discount > 0 && (
-            <div className="absolute right-2 top-2 rounded-full bg-red-500 px-2 py-1 text-xs font-semibold text-white">
-              -{discount}%
-            </div>
-          )}
           <button
             onClick={(e) => {
               e.preventDefault();
@@ -67,63 +60,34 @@ export function ProductCard({
           </button>
         </div>
 
-        {/* Category Badge */}
-        <div className="mb-2 inline-block rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700">
-          {product.category}
-        </div>
+        {/* Category */}
+        {product.category && (
+          <div className="mb-2 inline-block rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700">
+            {product.category}
+          </div>
+        )}
 
         {/* Title */}
-        <h3 className="mb-2 font-semibold text-slate-900 line-clamp-2">
+        <h3 className="mb-2 line-clamp-2 font-semibold text-slate-900">
           {product.title}
         </h3>
 
         {/* Description */}
-        <p className="mb-3 text-xs text-slate-600 line-clamp-2">
-          {product.description}
+        <p className="mb-3 line-clamp-2 text-xs text-slate-600">
+          {product.description || "Sin descripción disponible."}
         </p>
 
-        {/* Rating */}
-        <div className="mb-3 flex items-center gap-2">
-          <div className="flex gap-0.5">
-            {[...Array(5)].map((_, i) => (
-              <span
-                key={i}
-                className={`text-sm ${
-                  i < Math.floor(product.rating)
-                    ? "text-yellow-400"
-                    : "text-slate-300"
-                }`}
-              >
-                ★
-              </span>
-            ))}
-          </div>
-          <span className="text-xs text-slate-600">
-            ({product.review_count})
-          </span>
-        </div>
-
-        {/* Price */}
-        <div className="mb-3 flex items-baseline gap-2">
-          <span className="text-lg font-bold text-slate-900">
-            ${product.price.toFixed(2)}
-          </span>
-          {product.original_price && (
-            <span className="text-sm text-slate-500 line-through">
-              ${product.original_price.toFixed(2)}
-            </span>
+        {/* Document metadata straight from structure */}
+        <div className="mt-auto space-y-1 text-xs text-slate-600">
+          {product.publisher && <div>Editorial: {product.publisher}</div>}
+          {product.publication_date && (
+            <div>Fecha de publicación: {product.publication_date}</div>
           )}
-        </div>
-
-        {/* Stock Status */}
-        <div>
-          <span
-            className={`text-xs font-semibold ${
-              product.in_stock ? "text-green-600" : "text-red-600"
-            }`}
-          >
-            {product.in_stock ? "En Stock" : "Sin Stock"}
-          </span>
+          {product.url && (
+            <div className="truncate text-[11px] text-slate-500">
+              {product.url}
+            </div>
+          )}
         </div>
       </div>
     </Link>

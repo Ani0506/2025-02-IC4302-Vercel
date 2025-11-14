@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Heart } from "lucide-react";
+import { ArrowLeft, ExternalLink, Heart } from "lucide-react";
 
 import { Button } from "./ui/button";
 
@@ -17,6 +17,10 @@ interface Product {
   rating: number;
   review_count: number;
   in_stock: boolean;
+  url?: string;
+  publisher?: string;
+  publication_date?: string;
+  entities?: string[];
 }
 
 interface ProductDetailViewProps {
@@ -32,13 +36,7 @@ export function ProductDetailView({
 }: ProductDetailViewProps) {
   const [isFavorited, setIsFavorited] = useState(initialFavorited);
   const [isLoading, setIsLoading] = useState(false);
-
-  const discount = product.original_price
-    ? Math.round(
-        ((product.original_price - product.price) / product.original_price) *
-          100
-      )
-    : 0;
+  const [imageUrl, setImageUrl] = useState(product.image_url);
 
   const handleToggleFavorite = async () => {
     setIsLoading(true);
@@ -63,6 +61,38 @@ export function ProductDetailView({
     }
   };
 
+  useEffect(() => {
+    const fetchCoverImage = async () => {
+      if (!product.entities || product.entities.length === 0) return;
+
+      const truncatedTitle = product.title.split(" (")[0];
+      for (const entity of product.entities) {
+        const authorName = entity;
+        const coverUrl = `https://bookcover.longitood.com/bookcover?book_title=${encodeURIComponent(
+          truncatedTitle
+        )}&author_name=${encodeURIComponent(authorName)}`;
+
+        try {
+          const response = await fetch(coverUrl);
+          if (!response.ok) {
+            continue;
+          }
+
+          // Response is JSON: { "url": "https://..." }
+          const data = (await response.json()) as { url?: string };
+          if (data.url && !data.url.toLowerCase().includes("nophoto")) {
+            setImageUrl(data.url);
+            break;
+          }
+        } catch (error) {
+          // Ignore errors and try the next entity
+        }
+      }
+    };
+
+    fetchCoverImage();
+  }, [product.entities]);
+
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
@@ -70,10 +100,10 @@ export function ProductDetailView({
         <div className="px-6 py-4">
           <Link
             href="/"
-            className="inline-flex items-center gap-2 text-green-600 hover:text-green-700 font-medium"
+            className="inline-flex items-center gap-2 font-medium text-green-600 hover:text-green-700"
           >
             <ArrowLeft className="h-4 w-4" />
-            Volver a productos
+            Volver a resultados
           </Link>
         </div>
       </header>
@@ -82,107 +112,69 @@ export function ProductDetailView({
       <main className="px-6 py-8">
         <div className="mx-auto max-w-4xl">
           <div className="grid gap-8 md:grid-cols-2">
-            {/* Product Image */}
+            {/* Image */}
             <div className="flex items-center justify-center">
-              <div className="relative w-full max-w-md">
-                <div className="aspect-square overflow-hidden rounded-lg bg-slate-100">
+              <div className="relative h-full w-full max-w-md">
+                <div className="overflow-hidden rounded-lg bg-slate-100">
                   <img
-                    src={product.image_url || "/placeholder.svg"}
+                    src={imageUrl || "/placeholder.svg"}
                     alt={product.title}
                     className="h-full w-full object-cover"
                   />
                 </div>
-                {discount > 0 && (
-                  <div className="absolute right-4 top-4 rounded-full bg-red-500 px-4 py-2 text-lg font-bold text-white">
-                    -{discount}%
-                  </div>
-                )}
               </div>
             </div>
 
-            {/* Product Info */}
+            {/* Info */}
             <div className="flex flex-col gap-6">
               {/* Category */}
-              <div className="inline-block w-fit rounded-full bg-green-50 px-4 py-1 text-sm font-medium text-green-700">
-                {product.category}
-              </div>
+              {product.category && (
+                <div className="inline-block w-fit rounded-full bg-green-50 px-4 py-1 text-sm font-medium text-green-700">
+                  {product.category}
+                </div>
+              )}
 
               {/* Title */}
-              <div>
-                <h1 className="text-4xl font-bold text-slate-900">
-                  {product.title}
-                </h1>
-              </div>
+              <h1 className="text-3xl font-bold text-slate-900">
+                {product.title}
+              </h1>
 
-              {/* Rating */}
-              <div className="flex items-center gap-4">
-                <div className="flex gap-1">
-                  {[...Array(5)].map((_, i) => (
-                    <span
-                      key={i}
-                      className={`text-2xl ${
-                        i < Math.floor(product.rating)
-                          ? "text-yellow-400"
-                          : "text-slate-300"
-                      }`}
-                    >
-                      ★
+              {/* Metadata from document */}
+              <div className="space-y-1 text-sm text-slate-700">
+                {product.publisher && (
+                  <div>
+                    <span className="font-semibold">Editorial: </span>
+                    {product.publisher}
+                  </div>
+                )}
+                {product.publication_date && (
+                  <div>
+                    <span className="font-semibold">
+                      Fecha de publicación:{" "}
                     </span>
-                  ))}
-                </div>
-                <span className="text-slate-600">
-                  {product.rating} ({product.review_count} opiniones)
-                </span>
-              </div>
-
-              {/* Price */}
-              <div className="border-t border-b border-slate-200 py-6">
-                <div className="flex items-baseline gap-4">
-                  <span className="text-5xl font-bold text-slate-900">
-                    ${product.price.toFixed(2)}
-                  </span>
-                  {product.original_price && (
-                    <span className="text-2xl text-slate-500 line-through">
-                      ${product.original_price.toFixed(2)}
-                    </span>
-                  )}
-                </div>
-                {discount > 0 && (
-                  <p className="mt-2 text-sm text-green-600 font-semibold">
-                    Ahorras $
-                    {(product.original_price! - product.price).toFixed(2)}
-                  </p>
+                    {product.publication_date}
+                  </div>
+                )}
+                {product.entities && product.entities.length > 0 && (
+                  <div>
+                    <span className="font-semibold">Entidades: </span>
+                    {product.entities.join(", ")}
+                  </div>
                 )}
               </div>
 
-              {/* Stock Status */}
-              <div className="flex items-center gap-3">
-                <div
-                  className={`h-3 w-3 rounded-full ${
-                    product.in_stock ? "bg-green-500" : "bg-red-500"
-                  }`}
-                />
-                <span
-                  className={`text-lg font-semibold ${
-                    product.in_stock ? "text-green-600" : "text-red-600"
-                  }`}
-                >
-                  {product.in_stock ? "En Stock" : "Sin Stock"}
-                </span>
-              </div>
-
               {/* Description */}
-              <div className="rounded-lg bg-white p-6 border border-slate-200">
+              <div className="rounded-lg border border-slate-200 bg-white p-6">
                 <h3 className="mb-3 text-lg font-semibold text-slate-900">
-                  Descripción del Producto
+                  Descripción
                 </h3>
-                <p className="leading-relaxed text-slate-700">
-                  {product.description}
+                <p className="whitespace-pre-line leading-relaxed text-slate-700">
+                  {product.description || "Sin descripción disponible."}
                 </p>
               </div>
 
               {/* Actions */}
-              <div className="flex gap-3">
+              <div className="flex flex-wrap gap-3">
                 <Button
                   onClick={handleToggleFavorite}
                   disabled={isLoading}
@@ -198,23 +190,19 @@ export function ProductDetailView({
                   />
                   {isFavorited ? "Guardado" : "Guardar"}
                 </Button>
-                <Link href="/" className="flex-1">
-                  <Button className="w-full bg-green-600 hover:bg-green-700">
-                    Continuar Comprando
-                  </Button>
-                </Link>
-              </div>
-
-              {/* Additional Info */}
-              <div className="grid grid-cols-2 gap-4 rounded-lg bg-slate-100 p-4">
-                <div>
-                  <p className="text-sm text-slate-600">Envío Gratis</p>
-                  <p className="font-semibold text-slate-900">A todo el país</p>
-                </div>
-                <div>
-                  <p className="text-sm text-slate-600">Garantía</p>
-                  <p className="font-semibold text-slate-900">12 meses</p>
-                </div>
+                {product.url && (
+                  <a
+                    href={product.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex-1"
+                  >
+                    <Button className="flex w-full items-center justify-center gap-2 bg-green-600 hover:bg-green-700">
+                      Ver en origen
+                      <ExternalLink className="h-4 w-4" />
+                    </Button>
+                  </a>
+                )}
               </div>
             </div>
           </div>
