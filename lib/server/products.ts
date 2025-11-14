@@ -87,6 +87,8 @@ function mapProduct(doc: ProductDocument): Product {
 export interface ProductFilters {
   search?: string;
   facets?: {
+    pubDateTo: string;
+    pubDateFrom: string;
     publisher?: string[];
     language?: string[];
     edition?: string[];
@@ -231,19 +233,6 @@ function buildFacetMatch(filters: ProductFilters): Filter<ProductDocument> {
   if (andClauses.length) out.$and = andClauses;
   if (exprClauses.length) out.$expr = { $and: exprClauses };
   return out;
-}
-
-function buildSort(sort: ProductFilters["sort"]): Sort {
-  switch (sort) {
-    case "price-low":
-      return { price: 1 };
-    case "price-high":
-      return { price: -1 };
-    case "rating":
-      return { rating: -1 };
-    default:
-      return { Title: 1 };
-  }
 }
 
 export async function fetchProducts(
@@ -411,13 +400,13 @@ export async function fetchProducts(
       }
       if (postAnd.length) pipeline.push({ $match: { $and: postAnd } });
 
-      const docs = await productCollection.aggregate(pipeline).toArray();
+      const docs = await productCollection
+        .aggregate<ProductDocument>(pipeline)
+        .toArray();
 
-      // If there's a text search, trust Atlas Search result (even if empty).
-      // If there is NO search text and only facets, and Atlas returns 0 docs,
-      // fall back to Mongo filters so faucets still work even if the index
-      // is misconfigured or missing fields.
-      if (docs.length > 0 || filters.search) {
+      // If Atlas Search returns results, use them.
+      // If it returns 0 docs (for any reason), fall back method below.
+      if (docs.length > 0) {
         return docs.map(mapProduct);
       }
 
@@ -433,7 +422,7 @@ export async function fetchProducts(
 
       if (combined.$expr) {
         const alt = await productCollection
-          .aggregate([{ $match: combined }])
+          .aggregate<ProductDocument>([{ $match: combined }])
           .toArray();
         return alt.map(mapProduct);
       }
@@ -464,7 +453,7 @@ export async function fetchProducts(
 
   if (query.$expr) {
     const docs = await productCollection
-      .aggregate([{ $match: query }])
+      .aggregate<ProductDocument>([{ $match: query }])
       .toArray();
     return docs.map(mapProduct);
   }
