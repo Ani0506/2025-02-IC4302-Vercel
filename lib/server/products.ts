@@ -1,4 +1,4 @@
-import type { Filter } from "mongodb";
+import type { Filter, Sort } from "mongodb";
 
 import {
   ObjectId,
@@ -112,21 +112,30 @@ function buildQuery(filters: ProductFilters): Filter<ProductDocument> {
 function buildFacetMatch(filters: ProductFilters): Filter<ProductDocument> {
   const f = filters.facets;
   if (!f) return {};
-
   const andClauses: any[] = [];
-  const nonEmpty = (arr?: string[]) =>
-    (arr ?? []).map((v) => v.trim()).filter((v) => v.length > 0);
+  const nonEmpty = (arr?: any[]) =>
+    (arr ?? [])
+      .map((v) => (typeof v === "string" ? v.trim() : ""))
+      .filter((v) => v.length > 0);
   const pubs = nonEmpty(f.publisher);
   const langs = nonEmpty(f.language);
   const eds = nonEmpty(f.edition);
   const years = nonEmpty(f.pubYears);
-  const hasEmptyPublisher = (f.publisher ?? []).some(
-    (v) => v.trim().length === 0
-  );
-  const hasEmptyLanguage = (f.language ?? []).some(
-    (v) => v.trim().length === 0
-  );
-  const hasEmptyEdition = (f.edition ?? []).some((v) => v.trim().length === 0);
+  const hasEmptyPublisher = Array.isArray(f.publisher)
+    ? (f.publisher as any[]).some(
+        (v) => typeof v === "string" && v.trim().length === 0
+      )
+    : false;
+  const hasEmptyLanguage = Array.isArray(f.language)
+    ? (f.language as any[]).some(
+        (v) => typeof v === "string" && v.trim().length === 0
+      )
+    : false;
+  const hasEmptyEdition = Array.isArray(f.edition)
+    ? (f.edition as any[]).some(
+        (v) => typeof v === "string" && v.trim().length === 0
+      )
+    : false;
 
   if (pubs.length || hasEmptyPublisher) {
     const or: any[] = [];
@@ -182,9 +191,59 @@ function buildFacetMatch(filters: ProductFilters): Filter<ProductDocument> {
     }
   }
 
+  const exprClauses: any[] = [];
+  const hasFrom = Boolean(f.pubDateFrom);
+  const hasTo = Boolean(f.pubDateTo);
+  if (hasFrom || hasTo) {
+    const fromDate = hasFrom ? new Date(f.pubDateFrom as string) : undefined;
+    const toDate = hasTo ? new Date(f.pubDateTo as string) : undefined;
+    if (hasFrom) {
+      exprClauses.push({
+        $gte: [
+          {
+            $dateFromString: {
+              dateString: "$Publication date",
+              onError: null,
+              onNull: null,
+            },
+          },
+          fromDate,
+        ],
+      });
+    }
+    if (hasTo) {
+      exprClauses.push({
+        $lte: [
+          {
+            $dateFromString: {
+              dateString: "$Publication date",
+              onError: null,
+              onNull: null,
+            },
+          },
+          toDate,
+        ],
+      });
+    }
+  }
+
   const out: any = {};
   if (andClauses.length) out.$and = andClauses;
+  if (exprClauses.length) out.$expr = { $and: exprClauses };
   return out;
+}
+
+function buildSort(sort: ProductFilters["sort"]): Sort {
+  switch (sort) {
+    case "price-low":
+      return { price: 1 };
+    case "price-high":
+      return { price: -1 };
+    case "rating":
+      return { rating: -1 };
+    default:
+      return { Title: 1 };
+  }
 }
 
 export async function fetchProducts(
@@ -226,21 +285,29 @@ export async function fetchProducts(
       }
 
       const f = filters.facets;
-      const nonEmpty = (arr?: string[]) =>
-        (arr ?? []).map((v) => v.trim()).filter((v) => v.length > 0);
+      const nonEmpty = (arr?: any[]) =>
+        (arr ?? [])
+          .map((v) => (typeof v === "string" ? v.trim() : ""))
+          .filter((v) => v.length > 0);
       const pubs = nonEmpty(f?.publisher);
       const langs = nonEmpty(f?.language);
       const eds = nonEmpty(f?.edition);
       const years = nonEmpty(f?.pubYears);
-      const hasEmptyPublisher = (f?.publisher ?? []).some(
-        (v) => v.trim().length === 0
-      );
-      const hasEmptyLanguage = (f?.language ?? []).some(
-        (v) => v.trim().length === 0
-      );
-      const hasEmptyEdition = (f?.edition ?? []).some(
-        (v) => v.trim().length === 0
-      );
+      const hasEmptyPublisher = Array.isArray(f?.publisher)
+        ? (f!.publisher as any[]).some(
+            (v) => typeof v === "string" && v.trim().length === 0
+          )
+        : false;
+      const hasEmptyLanguage = Array.isArray(f?.language)
+        ? (f!.language as any[]).some(
+            (v) => typeof v === "string" && v.trim().length === 0
+          )
+        : false;
+      const hasEmptyEdition = Array.isArray(f?.edition)
+        ? (f!.edition as any[]).some(
+            (v) => typeof v === "string" && v.trim().length === 0
+          )
+        : false;
 
       if (pubs.length) {
         filterClauses.push({
@@ -345,9 +412,42 @@ export async function fetchProducts(
       if (postAnd.length) pipeline.push({ $match: { $and: postAnd } });
 
       const docs = await productCollection.aggregate(pipeline).toArray();
-      return docs.map(mapProduct);
+
+      // If there's a text search, trust Atlas Search result (even if empty).
+      // If there is NO search text and only facets, and Atlas returns 0 docs,
+      // fall back to Mongo filters so faucets still work even if the index
+      // is misconfigured or missing fields.
+      if (docs.length > 0 || filters.search) {
+        return docs.map(mapProduct);
+      }
+
+      const facetMatch = buildFacetMatch(filters);
+      const textMatch = buildQuery(filters);
+      const combined: any = {
+        ...textMatch,
+        ...("$and" in facetMatch
+          ? { $and: [...(textMatch.$and ?? []), ...(facetMatch.$and as any[])] }
+          : {}),
+        ...(facetMatch.$expr ? { $expr: facetMatch.$expr } : {}),
+      };
+
+      if (combined.$expr) {
+        const alt = await productCollection
+          .aggregate([{ $match: combined }])
+          .toArray();
+        return alt.map(mapProduct);
+      }
+
+      const alt = await productCollection.find(combined).toArray();
+      return alt.map(mapProduct);
     } catch (err) {
-      // Fall through to basic find if $search is unavailable
+      // Fall through to basic find if $search is unavailable — surface error for debugging
+      // (don't rethrow so we keep fallback behavior)
+      // eslint-disable-next-line no-console
+      console.error(
+        "Atlas Search aggregation failed, falling back to simple query:",
+        err
+      );
     }
   }
 
