@@ -3,28 +3,8 @@
 import { useEffect, useState } from "react";
 
 import { Spinner } from "@/components/ui/spinner";
-
 import { ProductCard } from "./product-card";
-
-interface Product {
-  id: string;
-  title: string;
-  description: string;
-  price: number;
-  original_price: number | null;
-  image_url: string;
-  category: string;
-  rating: number;
-  review_count: number;
-  in_stock: boolean;
-}
-
-interface FacetFilters {
-  publisher: string[];
-  language: string[];
-  edition: string[];
-  pubYears: string[];
-}
+import type { Product, FacetFilters } from "@/lib/domain/product";
 
 interface ProductGridProps {
   searchQuery: string;

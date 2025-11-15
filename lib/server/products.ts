@@ -1,33 +1,10 @@
 import type { Filter, Sort } from "mongodb";
 
-import {
-  ObjectId,
-  getCollection,
-  type FavoriteDocument,
-  type ProductDocument,
-} from "@/lib/mongo/client";
+import { ObjectId, getCollection, type FavoriteDocument, type ProductDocument } from "@/lib/mongo/client";
+import type { Product, ProductFilters } from "@/lib/domain/product";
 
-const PRODUCTS_COLLECTION =
-  process.env.MONGODB_PRODUCTS_COLLECTION ?? "documents";
-const FAVORITES_COLLECTION =
-  process.env.MONGODB_FAVORITES_COLLECTION ?? "favorites";
-
-export interface Product {
-  id: string;
-  title: string;
-  description: string;
-  price: number;
-  original_price: number | null;
-  image_url: string;
-  category: string;
-  rating: number;
-  review_count: number;
-  in_stock: boolean;
-  url?: string;
-  publisher?: string;
-  publication_date?: string;
-  entities?: string[];
-}
+const PRODUCTS_COLLECTION = process.env.MONGODB_PRODUCTS_COLLECTION ?? "documents";
+const FAVORITES_COLLECTION = process.env.MONGODB_FAVORITES_COLLECTION ?? "favorites";
 
 function parseRating(raw?: string): { rating: number; reviewCount: number } {
   if (!raw) {
@@ -81,18 +58,6 @@ function mapProduct(doc: ProductDocument): Product {
     publisher: doc.Publisher,
     publication_date: doc["Publication date"],
     entities: doc.entities ?? [],
-  };
-}
-
-export interface ProductFilters {
-  search?: string;
-  facets?: {
-    pubDateTo: string;
-    pubDateFrom: string;
-    publisher?: string[];
-    language?: string[];
-    edition?: string[];
-    pubYears?: string[];
   };
 }
 

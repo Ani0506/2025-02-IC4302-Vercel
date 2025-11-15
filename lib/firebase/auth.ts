@@ -5,31 +5,51 @@ import {
   signInWithEmailAndPassword,
   signOut,
   type User,
-} from "firebase/auth"
+} from "firebase/auth";
 
-import { getFirebaseAuth } from "./client"
+import { getFirebaseAuth } from "./client";
+
+async function createServerSession(user: User) {
+  const token = await user.getIdToken();
+  const response = await fetch("/api/session", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    throw new Error("No se pudo crear la sesiA3n en el servidor");
+  }
+}
 
 export function subscribeToAuthChanges(callback: (user: User | null) => void) {
-  const auth = getFirebaseAuth()
-  return onAuthStateChanged(auth, callback)
+  const auth = getFirebaseAuth();
+  return onAuthStateChanged(auth, callback);
 }
 
 export async function signInWithEmail(email: string, password: string) {
-  const auth = getFirebaseAuth()
-  const { user } = await signInWithEmailAndPassword(auth, email, password)
-  return user
+  const auth = getFirebaseAuth();
+  const { user } = await signInWithEmailAndPassword(auth, email, password);
+  return user;
 }
 
 export async function signUpWithEmail(email: string, password: string) {
-  const auth = getFirebaseAuth()
-  const { user } = await createUserWithEmailAndPassword(auth, email, password)
+  const auth = getFirebaseAuth();
+  const { user } = await createUserWithEmailAndPassword(auth, email, password);
   if (!user.emailVerified) {
-    await sendEmailVerification(user)
+    await sendEmailVerification(user);
   }
-  return user
+  return user;
 }
 
 export async function signOutCurrentUser() {
-  const auth = getFirebaseAuth()
-  await signOut(auth)
+  const auth = getFirebaseAuth();
+  await signOut(auth);
+}
+
+export async function ensureServerSession(user: User | null) {
+  if (!user) return;
+  await createServerSession(user);
 }

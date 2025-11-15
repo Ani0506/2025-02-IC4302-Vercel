@@ -3,9 +3,10 @@ export const runtime = "nodejs"
 import { NextResponse } from "next/server"
 
 import { getFirebaseAdminAuth } from "@/lib/firebase/admin"
+import { badRequest, ok, unauthorized, serverError } from "@/lib/server/api"
 
 const SESSION_COOKIE_NAME = "session"
-const SESSION_EXPIRES_IN = 1000 * 60 * 60 * 24 * 5 // 5 days
+const SESSION_EXPIRES_IN = 1000 * 60 * 60 * 24 * 5
 
 function extractToken(request: Request) {
   const authHeader = request.headers.get("authorization")
@@ -19,7 +20,7 @@ export async function POST(request: Request) {
   const token = extractToken(request)
 
   if (!token) {
-    return NextResponse.json({ error: "Missing ID token" }, { status: 400 })
+    return badRequest("Falta el ID token en Authorization")
   }
 
   try {
@@ -29,7 +30,7 @@ export async function POST(request: Request) {
       expiresIn: SESSION_EXPIRES_IN,
     })
 
-    const response = NextResponse.json({ success: true })
+    const response = ok({ success: true })
     response.cookies.set({
       name: SESSION_COOKIE_NAME,
       value: sessionCookie,
@@ -43,12 +44,15 @@ export async function POST(request: Request) {
     return response
   } catch (error) {
     console.error("[session] Unable to create session cookie", error)
-    return NextResponse.json({ error: "Invalid token" }, { status: 401 })
+    if (error instanceof Error) {
+      return unauthorized("ID token inválido")
+    }
+    return serverError("Error al crear la sesión")
   }
 }
 
 export async function DELETE() {
-  const response = NextResponse.json({ success: true })
+  const response = ok({ success: true })
   response.cookies.set({
     name: SESSION_COOKIE_NAME,
     value: "",

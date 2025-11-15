@@ -1,8 +1,7 @@
 export const runtime = "nodejs"
 
-import { NextResponse } from "next/server"
-
 import { fetchProductById } from "@/lib/server/products"
+import { notFound, ok, serverError } from "@/lib/server/api"
 
 interface RouteContext {
   params: {
@@ -11,11 +10,16 @@ interface RouteContext {
 }
 
 export async function GET(_request: Request, context: RouteContext) {
-  const product = await fetchProductById(context.params.id)
+  try {
+    const product = await fetchProductById(context.params.id)
 
-  if (!product) {
-    return NextResponse.json({ error: "Producto no encontrado" }, { status: 404 })
+    if (!product) {
+      return notFound("Producto no encontrado")
+    }
+
+    return ok({ product })
+  } catch (error) {
+    console.error("[products/:id] Error fetching product:", error)
+    return serverError("Error al obtener el producto")
   }
-
-  return NextResponse.json({ product })
 }

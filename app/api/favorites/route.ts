@@ -1,9 +1,10 @@
 export const runtime = "nodejs"
 
-import { NextResponse, type NextRequest } from "next/server"
+import { type NextRequest } from "next/server"
 
 import { verifySessionCookie } from "@/lib/firebase/admin"
 import { addFavorite, listFavorites, removeFavorite } from "@/lib/server/products"
+import { badRequest, ok, unauthorized, serverError } from "@/lib/server/api"
 
 async function getUserId(request: NextRequest) {
   const sessionCookie = request.cookies.get("session")?.value
@@ -21,44 +22,59 @@ async function getUserId(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
-  const userId = await getUserId(request)
-  if (!userId) {
-    return NextResponse.json({ favorites: [] })
-  }
+  try {
+    const userId = await getUserId(request)
+    if (!userId) {
+      return ok({ favorites: [] })
+    }
 
-  const favorites = await listFavorites(userId)
-  return NextResponse.json({ favorites })
+    const favorites = await listFavorites(userId)
+    return ok({ favorites })
+  } catch (error) {
+    console.error("[favorites] Error listing favorites:", error)
+    return serverError("Error al obtener favoritos")
+  }
 }
 
 export async function POST(request: NextRequest) {
-  const userId = await getUserId(request)
-  if (!userId) {
-    return NextResponse.json({ error: "No autenticado" }, { status: 401 })
+  try {
+    const userId = await getUserId(request)
+    if (!userId) {
+      return unauthorized("No autenticado")
+    }
+
+    const { productId } = (await request.json()) as { productId?: string }
+
+    if (!productId) {
+      return badRequest("productId es requerido")
+    }
+
+    await addFavorite(userId, productId)
+    return ok({ success: true })
+  } catch (error) {
+    console.error("[favorites] Error adding favorite:", error)
+    return serverError("Error al agregar favorito")
   }
-
-  const { productId } = (await request.json()) as { productId?: string }
-
-  if (!productId) {
-    return NextResponse.json({ error: "productId es requerido" }, { status: 400 })
-  }
-
-  await addFavorite(userId, productId)
-  return NextResponse.json({ success: true })
 }
 
 export async function DELETE(request: NextRequest) {
-  const userId = await getUserId(request)
-  if (!userId) {
-    return NextResponse.json({ error: "No autenticado" }, { status: 401 })
+  try {
+    const userId = await getUserId(request)
+    if (!userId) {
+      return unauthorized("No autenticado")
+    }
+
+    const { searchParams } = new URL(request.url)
+    const productId = searchParams.get("productId")
+
+    if (!productId) {
+      return badRequest("productId es requerido")
+    }
+
+    await removeFavorite(userId, productId)
+    return ok({ success: true })
+  } catch (error) {
+    console.error("[favorites] Error removing favorite:", error)
+    return serverError("Error al eliminar favorito")
   }
-
-  const { searchParams } = new URL(request.url)
-  const productId = searchParams.get("productId")
-
-  if (!productId) {
-    return NextResponse.json({ error: "productId es requerido" }, { status: 400 })
-  }
-
-  await removeFavorite(userId, productId)
-  return NextResponse.json({ success: true })
 }

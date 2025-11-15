@@ -1,106 +1,90 @@
-"use client"
+"use client";
 
-import type React from "react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { useEffect, useRef, useState } from "react"
+import type React from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { signInWithEmail, subscribeToAuthChanges } from "@/lib/firebase/auth"
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  ensureServerSession,
+  signInWithEmail,
+  subscribeToAuthChanges,
+} from "@/lib/firebase/auth";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [error, setError] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const [isCheckingAuth, setIsCheckingAuth] = useState(true)
-  const router = useRouter()
-  const sessionInitializedRef = useRef(false)
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const router = useRouter();
+  const sessionInitializedRef = useRef(false);
 
   useEffect(() => {
-    let isMounted = true
+    let isMounted = true;
 
     const unsubscribe = subscribeToAuthChanges(async (firebaseUser) => {
       if (!isMounted) {
-        return
+        return;
       }
 
       if (!firebaseUser) {
-        setIsCheckingAuth(false)
-        return
+        setIsCheckingAuth(false);
+        return;
       }
 
       try {
         if (!sessionInitializedRef.current) {
-          const token = await firebaseUser.getIdToken()
-          const response = await fetch("/api/session", {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-            credentials: "include",
-          })
-
-          if (!response.ok) {
-            throw new Error("No se pudo crear la sesión")
-          }
-
-          sessionInitializedRef.current = true
+          await ensureServerSession(firebaseUser);
+          sessionInitializedRef.current = true;
         }
 
-        router.replace("/")
+        router.replace("/");
       } catch (authError) {
-        console.error("[login] Error ensuring session cookie:", authError)
-        setError("Ocurrió un problema al validar la sesión.")
+        console.error("[login] Error ensuring session cookie:", authError);
+        setError("Ocurrió un problema al validar la sesión.");
       } finally {
-        setIsCheckingAuth(false)
+        setIsCheckingAuth(false);
       }
-    })
+    });
 
     return () => {
-      isMounted = false
-      unsubscribe()
-    }
-  }, [router])
+      isMounted = false;
+      unsubscribe();
+    };
+  }, [router]);
 
   const handleLogin = async (event: React.FormEvent) => {
-    event.preventDefault()
-    setIsLoading(true)
-    setError(null)
+    event.preventDefault();
+    setIsLoading(true);
+    setError(null);
 
     try {
-      const user = await signInWithEmail(email, password)
-      const token = await user.getIdToken()
-      const response = await fetch("/api/session", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        credentials: "include",
-      })
-
-      if (!response.ok) {
-        throw new Error("No se pudo iniciar la sesión en el servidor")
-      }
-
-      sessionInitializedRef.current = true
-      router.replace("/")
+      const user = await signInWithEmail(email, password);
+      await ensureServerSession(user);
+      sessionInitializedRef.current = true;
+      router.replace("/");
     } catch (authError) {
-      console.error("[login] Error signing in:", authError)
-      setError(authError instanceof Error ? authError.message : "Ocurrió un error al iniciar sesión.")
+      console.error("[login] Error signing in:", authError);
+      setError(
+        authError instanceof Error
+          ? authError.message
+          : "OcurriA3 un error al iniciar sesiA3n."
+      );
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   if (isCheckingAuth) {
     return (
       <div className="flex min-h-screen w-full items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-4">
         <div className="text-slate-600">Cargando...</div>
       </div>
-    )
+    );
   }
 
   return (
@@ -143,9 +127,17 @@ export default function LoginPage() {
               />
             </div>
 
-            {error && <div className="rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+            {error && (
+              <div className="rounded-md bg-red-50 p-3 text-sm text-red-700">
+                {error}
+              </div>
+            )}
 
-            <Button type="submit" disabled={isLoading} className="w-full bg-green-600 hover:bg-green-700">
+            <Button
+              type="submit"
+              disabled={isLoading}
+              className="w-full bg-green-600 hover:bg-green-700"
+            >
               {isLoading ? "Iniciando..." : "Iniciar Sesión"}
             </Button>
           </form>
@@ -153,7 +145,10 @@ export default function LoginPage() {
           <div className="mt-6 border-t border-slate-200 pt-6">
             <p className="text-center text-sm text-slate-600">
               ¿No tienes cuenta?{" "}
-              <Link href="/auth/sign-up" className="font-semibold text-green-600 hover:text-green-700">
+              <Link
+                href="/auth/sign-up"
+                className="font-semibold text-green-600 hover:text-green-700"
+              >
                 Regístrate aquí
               </Link>
             </p>
@@ -161,5 +156,5 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
-  )
+  );
 }
