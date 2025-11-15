@@ -32,7 +32,8 @@ Este proyecto en Next.js 16 utiliza Firebase Authentication + Firestore (para me
 
 - `lib/firebase/*` inicializa el uso del SDK de Firebase tanto en cliente como en servidor.
 - `lib/mongo/*` gestiona las conexiones a MongoDB Atlas y expone accesos tipados a las colecciones.
-- `lib/server/products.ts` centraliza las operaciones de productos y favoritos sobre MongoDB.
+- `lib/server/products.ts` actúa como fachada sobre los módulos `lib/server/products-mapping.ts`, `lib/server/products-search.ts` y `lib/server/products-favorites.ts`, que encapsulan el mapeo de documentos, la búsqueda sobre Atlas Search y la gestión de favoritos.
+- `lib/client/api.ts` centraliza las llamadas desde la UI a `/api/products`, `/api/products/facets` y `/api/favorites`.
 
 ## Resumen de la API
 
