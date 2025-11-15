@@ -20,7 +20,7 @@ async function createServerSession(user: User) {
   });
 
   if (!response.ok) {
-    throw new Error("No se pudo crear la sesiA3n en el servidor");
+    throw new Error("No se pudo crear la sesión en el servidor");
   }
 }
 

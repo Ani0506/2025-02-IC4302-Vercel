@@ -2,17 +2,16 @@ export const runtime = "nodejs"
 
 import { ok, serverError } from "@/lib/server/api"
 import { getCollection, type ProductDocument } from "@/lib/mongo/client"
-
-const PRODUCTS_COLLECTION = process.env.MONGODB_PRODUCTS_COLLECTION ?? "documents"
+import { MONGODB_PRODUCTS_COLLECTION, MONGODB_ATLAS_SEARCH_INDEX } from "@/lib/config"
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const search = searchParams.get("search") ?? undefined
 
-  const productCollection = await getCollection<ProductDocument>(PRODUCTS_COLLECTION)
+  const productCollection = await getCollection<ProductDocument>(MONGODB_PRODUCTS_COLLECTION)
 
   try {
-    const indexName = process.env.MONGODB_ATLAS_SEARCH_INDEX ?? "default"
+    const indexName = MONGODB_ATLAS_SEARCH_INDEX
 
     const operator = search
       ? { text: { query: search, path: ["Title", "Description", "entities", "Publisher"] } }

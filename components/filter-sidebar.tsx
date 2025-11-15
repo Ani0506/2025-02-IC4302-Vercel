@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { FacetFilters } from "@/lib/domain/product";
 
 type FacetBucket = { value: string; count: number };
 interface FacetResponse {
@@ -15,17 +16,10 @@ interface FacetResponse {
   };
 }
 
-interface SelectedFacets {
-  publisher: string[];
-  language: string[];
-  edition: string[];
-  pubYears: string[];
-}
-
 interface FilterSidebarProps {
   searchQuery: string;
-  selected: SelectedFacets;
-  onChange: (next: SelectedFacets) => void;
+  selected: FacetFilters;
+  onChange: (next: FacetFilters) => void;
 }
 
 export function FilterSidebar({
@@ -62,7 +56,7 @@ export function FilterSidebar({
   }, [searchQuery]);
 
   const toggle = (
-    key: keyof SelectedFacets,
+    key: keyof FacetFilters,
     value: string,
     nextChecked: boolean,
     allValues: string[]
@@ -105,7 +99,7 @@ export function FilterSidebar({
 
   const renderFacet = (
     label: string,
-    key: keyof SelectedFacets,
+    key: keyof FacetFilters,
     buckets?: FacetBucket[]
   ) => (
     <div className="mb-6 border-b border-slate-200 pb-4">

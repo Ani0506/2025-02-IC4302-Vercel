@@ -62,20 +62,18 @@ export function ProductDetailView({
             continue;
           }
 
-          // Response is JSON: { "url": "https://..." }
           const data = (await response.json()) as { url?: string };
           if (data.url && !data.url.toLowerCase().includes("nophoto")) {
             setImageUrl(data.url);
             break;
           }
         } catch (error) {
-          // Ignore errors and try the next entity
         }
       }
     };
 
     fetchCoverImage();
-  }, [product.entities]);
+  }, [product.entities, product.title]);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -195,3 +193,4 @@ export function ProductDetailView({
     </div>
   );
 }
+

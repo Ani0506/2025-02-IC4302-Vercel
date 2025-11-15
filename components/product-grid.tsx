@@ -5,29 +5,12 @@ import { useEffect, useState } from "react";
 import { Spinner } from "@/components/ui/spinner";
 import { ProductCard } from "./product-card";
 import type { Product, FacetFilters } from "@/lib/domain/product";
+import { buildQueryStringFromFilters } from "@/lib/domain/product-filters";
 
 interface ProductGridProps {
   searchQuery: string;
   facets: FacetFilters;
   userId: string;
-}
-
-function buildQueryParams({
-  searchQuery,
-  facets,
-}: {
-  searchQuery: string;
-  facets: FacetFilters;
-}) {
-  const params = new URLSearchParams();
-  if (searchQuery) {
-    params.set("search", searchQuery);
-  }
-  facets.publisher.forEach((v) => params.append("publisher", v));
-  facets.language.forEach((v) => params.append("language", v));
-  facets.edition.forEach((v) => params.append("edition", v));
-  facets.pubYears.forEach((v) => params.append("pubYear", v));
-  return params.toString();
 }
 
 export function ProductGrid({ searchQuery, facets, userId }: ProductGridProps) {
@@ -41,7 +24,7 @@ export function ProductGrid({ searchQuery, facets, userId }: ProductGridProps) {
     const fetchProducts = async () => {
       setLoading(true);
       try {
-        const query = buildQueryParams({ searchQuery, facets });
+        const query = buildQueryStringFromFilters(searchQuery, facets);
         const response = await fetch(`/api/products?${query}`);
         if (!response.ok) {
           throw new Error("No se pudo cargar los productos");

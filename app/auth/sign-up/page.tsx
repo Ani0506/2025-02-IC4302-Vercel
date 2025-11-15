@@ -52,7 +52,7 @@ export default function SignUpPage() {
           <form onSubmit={handleSignUp} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email" className="text-slate-700">
-                Correo Electrónico
+                Correo electrónico
               </Label>
               <Input
                 id="email"
@@ -82,7 +82,7 @@ export default function SignUpPage() {
 
             <div className="space-y-2">
               <Label htmlFor="confirmPassword" className="text-slate-700">
-                Confirmar Contraseña
+                Confirmar contraseña
               </Label>
               <Input
                 id="confirmPassword"
@@ -115,3 +115,4 @@ export default function SignUpPage() {
     </div>
   )
 }
+

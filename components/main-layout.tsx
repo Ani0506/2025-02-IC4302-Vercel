@@ -42,7 +42,7 @@ export function MainLayout({ user }: MainLayoutProps) {
         <div className="flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-600 text-white font-bold">
-              🛒
+              MT
             </div>
             <h1 className="text-2xl font-bold text-slate-900">MercadoTech</h1>
           </div>
@@ -58,7 +58,7 @@ export function MainLayout({ user }: MainLayoutProps) {
               variant="outline"
               className="border-slate-200 bg-transparent"
             >
-              {isLoading ? "Cerrando..." : "Cerrar Sesión"}
+              {isLoading ? "Cerrando..." : "Cerrar sesión"}
             </Button>
           </div>
         </div>

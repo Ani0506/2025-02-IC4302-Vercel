@@ -72,7 +72,7 @@ export default function LoginPage() {
       setError(
         authError instanceof Error
           ? authError.message
-          : "OcurriA3 un error al iniciar sesiA3n."
+          : "Ocurrió un error al iniciar sesión."
       );
     } finally {
       setIsLoading(false);
@@ -99,7 +99,7 @@ export default function LoginPage() {
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email" className="text-slate-700">
-                Correo Electrónico
+                Correo electrónico
               </Label>
               <Input
                 id="email"
@@ -138,7 +138,7 @@ export default function LoginPage() {
               disabled={isLoading}
               className="w-full bg-green-600 hover:bg-green-700"
             >
-              {isLoading ? "Iniciando..." : "Iniciar Sesión"}
+              {isLoading ? "Iniciando..." : "Iniciar sesión"}
             </Button>
           </form>
 
@@ -158,3 +158,4 @@ export default function LoginPage() {
     </div>
   );
 }
+
