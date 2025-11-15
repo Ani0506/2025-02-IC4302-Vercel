@@ -2,19 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { FacetFilters } from "@/lib/domain/product";
-
-type FacetBucket = { value: string; count: number };
-interface FacetResponse {
-  facets: {
-    count: number;
-    facets: {
-      publisher?: { buckets: FacetBucket[] };
-      language?: { buckets: FacetBucket[] };
-      edition?: { buckets: FacetBucket[] };
-      pubDate?: { buckets: { value: string; count: number }[] };
-    };
-  };
-}
+import { getFacets, type FacetBucket } from "@/lib/client/api";
 
 interface FilterSidebarProps {
   searchQuery: string;
@@ -28,21 +16,23 @@ export function FilterSidebar({
   onChange,
 }: FilterSidebarProps) {
   const [loading, setLoading] = useState(false);
-  const [facets, setFacets] = useState<FacetResponse["facets"] | null>(null);
+  const [facets, setFacets] = useState<{
+    count: number;
+    facets: {
+      publisher?: { buckets: FacetBucket[] };
+      language?: { buckets: FacetBucket[] };
+      edition?: { buckets: FacetBucket[] };
+      pubDate?: { buckets: FacetBucket[] };
+    };
+  } | null>(null);
 
   useEffect(() => {
     let active = true;
     const fetchFacets = async () => {
       setLoading(true);
       try {
-        const qs = new URLSearchParams();
-        if (searchQuery) qs.set("search", searchQuery);
-        const res = await fetch(`/api/products/facets?${qs.toString()}`);
-        if (!res.ok) throw new Error("No se pudieron cargar los filtros");
-        const data = (await res.json()) as FacetResponse;
-        if (active) {
-          setFacets(data.facets);
-        }
+        const data = await getFacets(searchQuery);
+        if (active) setFacets(data);
       } catch (e) {
         if (active) setFacets({ count: 0, facets: {} } as any);
       } finally {

@@ -53,3 +53,9 @@ export async function ensureServerSession(user: User | null) {
   if (!user) return;
   await createServerSession(user);
 }
+
+export async function signOutFromApp() {
+  await fetch("/api/session", { method: "DELETE", credentials: "include" });
+  await signOutCurrentUser();
+}
+

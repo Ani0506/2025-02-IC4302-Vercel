@@ -6,7 +6,7 @@ import { ProductGrid } from "./product-grid";
 import { FilterSidebar } from "./filter-sidebar";
 import { SearchBar } from "./search-bar";
 import { Button } from "./ui/button";
-import { signOutCurrentUser } from "@/lib/firebase/auth";
+import { signOutFromApp } from "@/lib/firebase/auth";
 import type { AuthenticatedUser } from "@/lib/server/auth";
 
 interface MainLayoutProps {
@@ -27,8 +27,7 @@ export function MainLayout({ user }: MainLayoutProps) {
   const handleLogout = async () => {
     setIsLoading(true);
     try {
-      await fetch("/api/session", { method: "DELETE" });
-      await signOutCurrentUser();
+      await signOutFromApp();
       router.replace("/auth/login");
     } finally {
       setIsLoading(false);
@@ -92,3 +91,4 @@ export function MainLayout({ user }: MainLayoutProps) {
     </div>
   );
 }
+

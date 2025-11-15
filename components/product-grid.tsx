@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { Spinner } from "@/components/ui/spinner";
 import { ProductCard } from "./product-card";
 import type { Product, FacetFilters } from "@/lib/domain/product";
-import { buildQueryStringFromFilters } from "@/lib/domain/product-filters";
+import { getFavorites, getProducts, toggleFavorite } from "@/lib/client/api";
 
 interface ProductGridProps {
   searchQuery: string;
@@ -24,14 +24,9 @@ export function ProductGrid({ searchQuery, facets, userId }: ProductGridProps) {
     const fetchProducts = async () => {
       setLoading(true);
       try {
-        const query = buildQueryStringFromFilters(searchQuery, facets);
-        const response = await fetch(`/api/products?${query}`);
-        if (!response.ok) {
-          throw new Error("No se pudo cargar los productos");
-        }
-        const data = (await response.json()) as { products?: Product[] };
+        const data = await getProducts({ searchQuery, facets });
         if (isSubscribed) {
-          setProducts(data.products ?? []);
+          setProducts(data);
         }
       } catch (error) {
         console.error("[products] Error fetching products:", error);
@@ -56,13 +51,9 @@ export function ProductGrid({ searchQuery, facets, userId }: ProductGridProps) {
 
     const fetchFavorites = async () => {
       try {
-        const response = await fetch("/api/favorites");
-        if (!response.ok) {
-          throw new Error("No se pudieron cargar los favoritos");
-        }
-        const data = (await response.json()) as { favorites?: string[] };
+        const data = await getFavorites();
         if (isSubscribed) {
-          setFavorites(new Set(data.favorites ?? []));
+          setFavorites(new Set(data));
         }
       } catch (error) {
         console.error("[favorites] Error fetching favorites:", error);
@@ -81,31 +72,19 @@ export function ProductGrid({ searchQuery, facets, userId }: ProductGridProps) {
     };
   }, [userId]);
 
-  const toggleFavorite = async (productId: string) => {
-    const isFavorited = favorites.has(productId);
-
+  const handleToggleFavorite = async (productId: string) => {
     try {
-      if (isFavorited) {
-        await fetch(`/api/favorites?productId=${productId}`, {
-          method: "DELETE",
-        });
-        setFavorites((prev) => {
-          const next = new Set(prev);
-          next.delete(productId);
-          return next;
-        });
-      } else {
-        await fetch("/api/favorites", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ productId }),
-        });
-        setFavorites((prev) => {
-          const next = new Set(prev);
+      const isFavorited = favorites.has(productId);
+      const nextState = await toggleFavorite(productId, isFavorited);
+      setFavorites((prev) => {
+        const next = new Set(prev);
+        if (nextState) {
           next.add(productId);
-          return next;
-        });
-      }
+        } else {
+          next.delete(productId);
+        }
+        return next;
+      });
     } catch (error) {
       console.error("[favorites] Error toggling favorite:", error);
     }
@@ -143,7 +122,7 @@ export function ProductGrid({ searchQuery, facets, userId }: ProductGridProps) {
             key={product.id}
             product={product}
             isFavorited={favorites.has(product.id)}
-            onToggleFavorite={() => toggleFavorite(product.id)}
+            onToggleFavorite={() => handleToggleFavorite(product.id)}
           />
         ))}
       </div>
